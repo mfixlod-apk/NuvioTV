@@ -18,7 +18,7 @@ data class TelegramVideoMessage(
 )
 
 object TelegramRepository {
-    private val log = Log"TelegramRepository")
+    private const val TAG = "Telegram"
     private var appContext: Context? = null
 
     val authState: StateFlow<TelegramAuthState> get() = TelegramClient.authState
@@ -57,7 +57,7 @@ object TelegramRepository {
         sessionMarker(context).delete()
         File(context.filesDir, "tdlib").deleteRecursively()
         File(context.filesDir, "tdlib_files").deleteRecursively()
-        Log.d("Telegram", "Wiped TDLib session and files" )
+        Log.d(TAG, "Wiped TDLib session and files")
     }
 
     fun getCacheSize(): Long {
