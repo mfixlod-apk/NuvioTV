@@ -20,7 +20,7 @@ import kotlin.coroutines.resumeWithException
 class TelegramApiException(message: String) : Exception(message)
 
 object TelegramClient {
-    private val log = Log"TelegramClient")
+    private const val TAG = "Telegram"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val _authState = MutableStateFlow<TelegramAuthState>(TelegramAuthState.Idle)
@@ -34,7 +34,7 @@ object TelegramClient {
             System.loadLibrary("tdjni")
             true
         } catch (e: Throwable) {
-            Log.w("Telegram", "TDLib native library not available: ${e.message)" }
+            Log.w(TAG, "TDLib native library not available: ${e.message}")
             false
         }
     }
@@ -52,12 +52,12 @@ object TelegramClient {
             try {
                 client = Client.create(
                     { update -> handleUpdate(update) },
-                    { e -> Log.e("Telegram", "TDLib update exception" ) },
-                    { e -> Log.e("Telegram", "TDLib default exception" ) }
+                    { e -> Log.e(TAG, "TDLib update exception" }, e),
+                    { e -> Log.e(TAG, "TDLib default exception" }, e)
                 )
                 sendTdlibParameters()
             } catch (e: Throwable) {
-                Log.e("Telegram", "TDLib Client.create failed" )
+                Log.e(TAG, "TDLib Client.create failed", e)
                 _authState.value = TelegramAuthState.Error("TDLib initialization failed: ${e.message}")
             }
         }
@@ -97,7 +97,7 @@ object TelegramClient {
     }
 
     private fun handleAuthState(state: TdApi.AuthorizationState) {
-        Log.d("Telegram", "AuthorizationState -> ${state::class.simpleName)" }
+        Log.d(TAG, "AuthorizationState -> ${state::class.simpleName}")
         when (state) {
             is TdApi.AuthorizationStateWaitTdlibParameters -> sendTdlibParameters()
             is TdApi.AuthorizationStateWaitPhoneNumber -> {
