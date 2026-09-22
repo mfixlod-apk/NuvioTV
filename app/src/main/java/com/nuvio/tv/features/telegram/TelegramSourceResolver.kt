@@ -42,7 +42,7 @@ internal actual object TelegramSourceResolver {
         season: Int?,
         episode: Int?,
         isMovie: Boolean
-    ): List<StreamItem> {
+    ): List<Stream> {
         val queries = if (season != null && episode != null)
             TelegramSearchMatcher.buildSeriesQueries(title, season, episode)
         else
