@@ -52,8 +52,8 @@ object TelegramClient {
             try {
                 client = Client.create(
                     { update -> handleUpdate(update) },
-                    { e -> Log.e(TAG, "TDLib update exception" }, e),
-                    { e -> Log.e(TAG, "TDLib default exception" }, e)
+                    { e -> Log.e(TAG, "TDLib update exception", e) },
+                    { e -> Log.e(TAG, "TDLib default exception", e) }
                 )
                 sendTdlibParameters()
             } catch (e: Throwable) {
