@@ -532,8 +532,8 @@ dependencies {
     implementation(libs.supabase.postgrest)
     implementation(libs.supabase.storage)
     implementation(libs.ktor.client.okhttp)
-    implementation("io.ktor:ktor-server-core-jvm:3.1.1")
-    implementation("io.ktor:ktor-server-cio-jvm:3.1.1")
+    implementation(libs.ktor.server.core)
+    implementation(libs.ktor.server.cio)
     implementation(libs.sentry.android)
 
     // Kotlinx Serialization
