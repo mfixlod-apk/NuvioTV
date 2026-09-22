@@ -92,6 +92,8 @@ import com.nuvio.tv.R
 import com.nuvio.tv.core.build.AppFeaturePolicy
 import com.nuvio.tv.domain.model.ExperienceMode
 import com.nuvio.tv.domain.model.SettingsUiStyle
+import com.nuvio.tv.features.telegram.TelegramAuthState
+import com.nuvio.tv.features.telegram.TelegramRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -118,7 +120,8 @@ private enum class IntegrationSettingsSection {
     Debrid,
     Tmdb,
     MdbList,
-    AnimeSkip
+    AnimeSkip,
+    Telegram
 }
 
 internal enum class SettingsSectionDestination {
@@ -331,6 +334,7 @@ fun SettingsScreen(
     val integrationTmdbFocusRequester = remember { FocusRequester() }
     val integrationMdbListFocusRequester = remember { FocusRequester() }
     val integrationAnimeSkipFocusRequester = remember { FocusRequester() }
+    val integrationTelegramFocusRequester = remember { FocusRequester() }
     var integrationSection by remember { mutableStateOf(IntegrationSettingsSection.Hub) }
     var pendingContentFocusCategory by remember { mutableStateOf<SettingsCategory?>(null) }
     var pendingContentFocusRequestId by remember { mutableLongStateOf(0L) }
@@ -1160,6 +1164,7 @@ private fun IntegrationSettingsContent(
     tmdbFocusRequester: FocusRequester,
     mdbListFocusRequester: FocusRequester,
     animeSkipFocusRequester: FocusRequester,
+    telegramFocusRequester: FocusRequester,
     autoFocusEnabled: Boolean
 ) {
     BackHandler(enabled = selectedSection != IntegrationSettingsSection.Hub) {
@@ -1175,6 +1180,7 @@ private fun IntegrationSettingsContent(
             IntegrationSettingsSection.Tmdb -> tmdbFocusRequester
             IntegrationSettingsSection.MdbList -> mdbListFocusRequester
             IntegrationSettingsSection.AnimeSkip -> animeSkipFocusRequester
+            IntegrationSettingsSection.Telegram -> telegramFocusRequester
         }
         runCatching { requester.requestFocus() }
     }
@@ -1230,6 +1236,13 @@ private fun IntegrationSettingsContent(
                                     onClick = { onSelectSection(IntegrationSettingsSection.AnimeSkip) }
                                 )
                             }
+                            item(key = "integration_hub_telegram") {
+                                SettingsActionRow(
+                                    title = "Telegram",
+                                    subtitle = "Search and play your Telegram video sources",
+                                    onClick = { onSelectSection(IntegrationSettingsSection.Telegram) }
+                                )
+                            }
                         }
                         SettingsVerticalScrollIndicators(state = integrationHubState)
                     }
@@ -1260,6 +1273,10 @@ private fun IntegrationSettingsContent(
                 initialFocusRequester = animeSkipFocusRequester
             )
         }
+
+        IntegrationSettingsSection.Telegram -> {
+            TelegramSettingsContent(initialFocusRequester = telegramFocusRequester)
+        }
     }
 }
 
@@ -1277,3 +1294,47 @@ private fun Key.isDirection(): Boolean =
         this == Key.DirectionDown ||
         this == Key.DirectionLeft ||
         this == Key.DirectionRight
+
+@Composable
+private fun TelegramSettingsContent(initialFocusRequester: FocusRequester) {
+    val authState by TelegramRepository.authState.collectAsStateWithLifecycle()
+    var input by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
+    LaunchedEffect(Unit) { TelegramRepository.startAuth() }
+    Column(modifier = Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        SettingsDetailHeader(title = "Telegram", subtitle = "Connect Telegram to search and stream your video sources.")
+        when (val state = authState) {
+            TelegramAuthState.Idle, TelegramAuthState.Initializing -> {
+                Text("Telegram is not connected.")
+                androidx.tv.material3.Button(onClick = { TelegramRepository.startAuth() }, modifier = Modifier.focusRequester(initialFocusRequester)) { Text("Connect Telegram") }
+            }
+            TelegramAuthState.WaitPhone -> {
+                Text("Enter your Telegram phone number, including country code.")
+                androidx.compose.material3.OutlinedTextField(value = input, onValueChange = { input = it }, label = { Text("Phone number") }, modifier = Modifier.focusRequester(initialFocusRequester))
+                androidx.tv.material3.Button(onClick = { TelegramRepository.submitPhone(input.trim()) }) { Text("Continue") }
+            }
+            is TelegramAuthState.WaitCode -> {
+                Text("Enter the Telegram login code.")
+                androidx.compose.material3.OutlinedTextField(value = input, onValueChange = { input = it }, label = { Text("Code") }, modifier = Modifier.focusRequester(initialFocusRequester))
+                androidx.tv.material3.Button(onClick = { TelegramRepository.submitCode(input.trim()) }) { Text("Verify") }
+            }
+            TelegramAuthState.WaitPassword -> {
+                Text("Enter your Telegram 2-step verification password.")
+                androidx.compose.material3.OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("Password") }, modifier = Modifier.focusRequester(initialFocusRequester))
+                androidx.tv.material3.Button(onClick = { TelegramRepository.submitPassword(password) }) { Text("Verify") }
+            }
+            is TelegramAuthState.WaitQr -> {
+                Text("Telegram is waiting for confirmation on another device.")
+                Text(state.link)
+            }
+            is TelegramAuthState.Ready -> {
+                Text("Connected as " + state.firstName)
+                androidx.tv.material3.Button(onClick = { TelegramRepository.disconnect() }, modifier = Modifier.focusRequester(initialFocusRequester)) { Text("Disconnect Telegram") }
+            }
+            is TelegramAuthState.Error -> {
+                Text("Telegram error: " + state.message)
+                androidx.tv.material3.Button(onClick = { TelegramRepository.startAuth() }, modifier = Modifier.focusRequester(initialFocusRequester)) { Text("Try again") }
+            }
+        }
+    }
+}
