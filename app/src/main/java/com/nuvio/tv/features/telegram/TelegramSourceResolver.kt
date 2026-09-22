@@ -1,14 +1,15 @@
 package com.nuvio.tv.features.telegram
 
-import co.touchlab.kermit.Logger
+import android.util.Log
 import com.nuvio.tv.domain.model.Stream
+import com.nuvio.tv.domain.model.StreamBehaviorHints
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 
 internal actual object TelegramSourceResolver {
-    private val log = Logger.withTag("TelegramResolver")
+    private const val TAG = "TelegramResolver"
     private const val SCORE_THRESHOLD = 55
     private const val SEARCH_TIMEOUT_MS = 20_000L
     private const val MAX_RESULTS = 50
@@ -22,7 +23,7 @@ internal actual object TelegramSourceResolver {
         episode: Int?,
         imdbId: String,
         isMovie: Boolean
-    ): List<StreamItem> {
+    ): List<Stream> {
         if (!isEnabled()) return emptyList()
 
         return try {
@@ -30,7 +31,7 @@ internal actual object TelegramSourceResolver {
                 resolveInternal(title, year, season, episode, isMovie)
             } ?: emptyList()
         } catch (e: Exception) {
-            log.w(e) { "Telegram search error for '$title'" }
+            Log.w(TAG, "Telegram search error for $title", e)
             emptyList()
         }
     }
@@ -56,7 +57,7 @@ internal actual object TelegramSourceResolver {
                     try {
                         TelegramRepository.searchVideoMessages(query, MAX_RESULTS)
                     } catch (e: Exception) {
-                        log.e(e) { "Telegram search failed for query '$query'" }
+                        Log.e(TAG, "Telegram search failed for query $query", e)
                         emptyList()
                     }
                 }
@@ -91,15 +92,21 @@ internal actual object TelegramSourceResolver {
                     title = displayName,
                     description = displayName,
                     url = streamUrl,
-                    addonName = "Telegram",
-                    behaviorHints = com.nuvio.tv.domain.model.StreamBehaviorHints(
+                    ytId = null,
+                    infoHash = null,
+                    fileIdx = null,
+                    externalUrl = null,
+                    behaviorHints = StreamBehaviorHints(
                         notWebReady = false,
                         bingeGroup = null,
                         countryWhitelist = null,
                         proxyHeaders = null,
                         videoSize = msg.fileSize,
                         filename = msg.fileName
-                    )
+                    ),
+                    addonName = "Telegram",
+                    addonLogo = null,
+                    quality = quality
                 )
             }
             .sortedByDescending { it.behaviorHints.videoSize ?: 0L }
