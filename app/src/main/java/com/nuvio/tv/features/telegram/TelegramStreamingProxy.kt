@@ -22,7 +22,7 @@ import org.drinkless.tdlib.TdApi
 import java.net.ServerSocket
 
 object TelegramStreamingProxy {
-    private val log = Log"TelegramProxy")
+    private const val TAG = "Telegram"
     private const val CHUNK_SIZE = 2 * 1024 * 1024
     private const val PREFETCH_SIZE = 20 * 1024 * 1024L
     private const val DOWNLOAD_TIMEOUT_MS = 30_000L
@@ -42,7 +42,7 @@ object TelegramStreamingProxy {
             routing {
                 get("/file/{fileId}") {
                     val fileId = call.parameters["fileId"]?.toIntOrNull()
-                    Log.d("Telegram", "Streaming request: fileId=$fileId range=${call.request.headers[HttpHeaders.Range])" }
+                    Log.d(TAG, "Streaming request: fileId=$fileId range=${call.request.headers[HttpHeaders.Range]}")
                     if (fileId == null) {
                         call.respond(HttpStatusCode.BadRequest)
                         return@get
