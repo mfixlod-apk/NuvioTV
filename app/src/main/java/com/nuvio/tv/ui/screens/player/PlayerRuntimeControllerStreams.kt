@@ -15,6 +15,7 @@ import com.nuvio.tv.domain.model.AddonStreams
 import com.nuvio.tv.domain.model.Stream
 import com.nuvio.tv.domain.model.StreamDebridCacheState
 import com.nuvio.tv.domain.model.Video
+import com.nuvio.tv.features.telegram.TelegramSourceResolver
 import com.nuvio.tv.domain.model.enabledAddons
 import com.nuvio.tv.ui.components.SourceChipItem
 import com.nuvio.tv.ui.components.SourceChipStatus
@@ -27,6 +28,25 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+
+private suspend fun PlayerRuntimeController.telegramStreamsForCurrentContent(
+    type: String,
+    videoId: String,
+    season: Int?,
+    episode: Int?
+): List<Stream> {
+    if (!TelegramSourceResolver.isEnabled()) return emptyList()
+    return runCatching {
+        TelegramSourceResolver.resolve(
+            title = title,
+            year = year?.toIntOrNull(),
+            season = season,
+            episode = episode,
+            imdbId = videoId,
+            isMovie = type.equals("movie", ignoreCase = true)
+        )
+    }.getOrElse { emptyList() }
+}
 
 /** Hard ceiling for next-episode stream search to prevent hanging forever. */
 private const val NEXT_EPISODE_HARD_TIMEOUT_MS = 120_000L
@@ -230,8 +250,8 @@ internal fun PlayerRuntimeController.loadSourceStreams(forceRefresh: Boolean) {
             when (result) {
                 is NetworkResult.Success -> {
                     val addonStreams = StreamAutoPlaySelector.orderAddonStreams(result.data, installedAddonOrder)
-                    val allStreams = addonStreams.flatMap { it.streams }
-                    val availableAddons = addonStreams.map { it.addonName }
+                    val allStreams = addonStreams.flatMap { it.streams } + telegramStreamsForCurrentContent(type, vid, seasonArg, episodeArg)
+                    val availableAddons = addonStreams.map { it.addonName } + if (TelegramSourceResolver.isEnabled()) listOf("Telegram") else emptyList()
                     _uiState.update {
                         // On resume, merge fresh results with any previously cached streams
                         val mergedAllStreams = if (isResume && it.sourceAllStreams.isNotEmpty()) {
