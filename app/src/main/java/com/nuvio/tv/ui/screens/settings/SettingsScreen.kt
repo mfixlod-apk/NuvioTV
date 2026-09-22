@@ -1314,19 +1314,73 @@ private fun TelegramSettingsContent(initialFocusRequester: FocusRequester) {
                 androidx.tv.material3.Button(onClick = { TelegramRepository.startAuth() }, modifier = Modifier.focusRequester(initialFocusRequester)) { Text("Connect Telegram") }
             }
             TelegramAuthState.WaitPhone -> {
+                val continueFocusRequester = remember { FocusRequester() }
                 Text("Enter your Telegram phone number, including country code.")
-                androidx.compose.material3.OutlinedTextField(value = input, onValueChange = { input = it }, label = { Text("Phone number") }, modifier = Modifier.focusRequester(initialFocusRequester))
-                androidx.tv.material3.Button(onClick = { TelegramRepository.submitPhone(input.trim()) }) { Text("Continue") }
+                androidx.compose.material3.OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    label = { Text("Phone number") },
+                    modifier = Modifier
+                        .focusRequester(initialFocusRequester)
+                        .onPreviewKeyEvent { event ->
+                            if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown) {
+                                runCatching { continueFocusRequester.requestFocus() }
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                )
+                androidx.tv.material3.Button(
+                    onClick = { TelegramRepository.submitPhone(input.trim()) },
+                    modifier = Modifier.focusRequester(continueFocusRequester)
+                ) { Text("Continue") }
             }
             is TelegramAuthState.WaitCode -> {
+                val verifyFocusRequester = remember { FocusRequester() }
                 Text("Enter the Telegram login code.")
-                androidx.compose.material3.OutlinedTextField(value = input, onValueChange = { input = it }, label = { Text("Code") }, modifier = Modifier.focusRequester(initialFocusRequester))
-                androidx.tv.material3.Button(onClick = { TelegramRepository.submitCode(input.trim()) }) { Text("Verify") }
+                androidx.compose.material3.OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    label = { Text("Code") },
+                    modifier = Modifier
+                        .focusRequester(initialFocusRequester)
+                        .onPreviewKeyEvent { event ->
+                            if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown) {
+                                runCatching { verifyFocusRequester.requestFocus() }
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                )
+                androidx.tv.material3.Button(
+                    onClick = { TelegramRepository.submitCode(input.trim()) },
+                    modifier = Modifier.focusRequester(verifyFocusRequester)
+                ) { Text("Verify") }
             }
             TelegramAuthState.WaitPassword -> {
+                val verifyFocusRequester = remember { FocusRequester() }
                 Text("Enter your Telegram 2-step verification password.")
-                androidx.compose.material3.OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("Password") }, modifier = Modifier.focusRequester(initialFocusRequester))
-                androidx.tv.material3.Button(onClick = { TelegramRepository.submitPassword(password) }) { Text("Verify") }
+                androidx.compose.material3.OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Password") },
+                    modifier = Modifier
+                        .focusRequester(initialFocusRequester)
+                        .onPreviewKeyEvent { event ->
+                            if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown) {
+                                runCatching { verifyFocusRequester.requestFocus() }
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                )
+                androidx.tv.material3.Button(
+                    onClick = { TelegramRepository.submitPassword(password) },
+                    modifier = Modifier.focusRequester(verifyFocusRequester)
+                ) { Text("Verify") }
             }
             is TelegramAuthState.WaitQr -> {
                 Text("Telegram is waiting for confirmation on another device.")
