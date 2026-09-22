@@ -8,15 +8,15 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 
-internal actual object TelegramSourceResolver {
+internal object TelegramSourceResolver {
     private const val TAG = "TelegramResolver"
     private const val SCORE_THRESHOLD = 55
     private const val SEARCH_TIMEOUT_MS = 20_000L
     private const val MAX_RESULTS = 50
 
-    actual fun isEnabled(): Boolean = TelegramRepository.isAuthenticated()
+    fun isEnabled(): Boolean = TelegramRepository.isAuthenticated()
 
-    actual suspend fun resolve(
+    suspend fun resolve(
         title: String,
         year: Int?,
         season: Int?,
@@ -109,7 +109,7 @@ internal actual object TelegramSourceResolver {
                     quality = quality
                 )
             }
-            .sortedByDescending { it.behaviorHints.videoSize ?: 0L }
+            .sortedByDescending { it.behaviorHints?.videoSize ?: 0L }
     }
 
     private fun parseQuality(raw: String): String {
