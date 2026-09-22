@@ -1012,6 +1012,7 @@ private fun SettingsDetailPane(
             tmdbFocusRequester = integrationTmdbFocusRequester,
             mdbListFocusRequester = integrationMdbListFocusRequester,
             animeSkipFocusRequester = integrationAnimeSkipFocusRequester,
+            telegramFocusRequester = telegramFocusRequester,
             autoFocusEnabled = allowDetailAutofocus
         )
         SettingsCategory.ABOUT -> AboutSettingsContent(
