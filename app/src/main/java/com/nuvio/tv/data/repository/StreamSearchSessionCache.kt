@@ -26,28 +26,19 @@ internal data class StreamSearchRequestKey(
     val videoId: String,
     val season: Int?,
     val episode: Int?,
+    val title: String,
+    val year: Int?,
     val sourceConfiguration: String
 )
 
-/**
- * Keeps a small set of source searches alive independently of UI collectors.
- * Completed results are memory-only and short-lived because addon URLs may expire.
- */
 internal class StreamSearchSessionCache(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     private val nowMs: () -> Long = System::currentTimeMillis,
     private val completedTtlMs: Long = DEFAULT_COMPLETED_TTL_MS,
     private val maxEntries: Int = DEFAULT_MAX_ENTRIES
 ) {
-    private data class Snapshot(
-        val result: NetworkResult<List<AddonStreams>>,
-        val version: Long,
-        val isComplete: Boolean
-    )
-
-    private class Session(
-        val state: MutableStateFlow<Snapshot>
-    ) {
+    private data class Snapshot(val result: NetworkResult<List<AddonStreams>>, val version: Long, val isComplete: Boolean)
+    private class Session(val state: MutableStateFlow<Snapshot>) {
         lateinit var job: Job
         @Volatile var invalidated: Boolean = false
         var completedAtMs: Long? = null
@@ -57,89 +48,47 @@ internal class StreamSearchSessionCache(
     private val mutex = Mutex()
     private val sessions = LinkedHashMap<StreamSearchRequestKey, Session>(16, 0.75f, true)
 
-    fun observe(
-        key: StreamSearchRequestKey,
-        forceRefresh: Boolean,
-        producer: () -> Flow<NetworkResult<List<AddonStreams>>>
-    ): Flow<NetworkResult<List<AddonStreams>>> = flow {
+    fun observe(key: StreamSearchRequestKey, forceRefresh: Boolean, producer: () -> Flow<NetworkResult<List<AddonStreams>>>): Flow<NetworkResult<List<AddonStreams>>> = flow {
         val session = acquireSession(key, forceRefresh, producer)
         var emittedVersion = -1L
-        emitAll(
-            session.state.transformWhile { snapshot ->
-                if (snapshot.version != emittedVersion) {
-                    emittedVersion = snapshot.version
-                    emit(snapshot.result)
-                }
-                !snapshot.isComplete
+        emitAll(session.state.transformWhile { snapshot ->
+            if (snapshot.version != emittedVersion) {
+                emittedVersion = snapshot.version
+                emit(snapshot.result)
             }
-        )
+            !snapshot.isComplete
+        })
     }
 
-    private suspend fun acquireSession(
-        key: StreamSearchRequestKey,
-        forceRefresh: Boolean,
-        producer: () -> Flow<NetworkResult<List<AddonStreams>>>
-    ): Session {
+    private suspend fun acquireSession(key: StreamSearchRequestKey, forceRefresh: Boolean, producer: () -> Flow<NetworkResult<List<AddonStreams>>>): Session {
         var created: Session? = null
         val selected = mutex.withLock {
             removeExpiredLocked()
             removeObsoleteSessionsLocked(key)
-
-            if (forceRefresh) {
-                sessions.remove(key)?.cancelAndComplete()
-            } else {
-                sessions[key]?.let { return@withLock it }
-            }
-
+            if (forceRefresh) sessions.remove(key)?.cancelAndComplete()
+            else sessions[key]?.let { return@withLock it }
             createSession(key, producer).also { session ->
                 sessions[key] = session
                 trimToSizeLocked()
                 created = session
             }
         }
-        withContext(NonCancellable) {
-            created?.job?.start()
-        }
+        withContext(NonCancellable) { created?.job?.start() }
         return selected
     }
 
-    private fun createSession(
-        key: StreamSearchRequestKey,
-        producer: () -> Flow<NetworkResult<List<AddonStreams>>>
-    ): Session {
-        val session = Session(
-            MutableStateFlow(
-                Snapshot(
-                    result = NetworkResult.Loading,
-                    version = 0L,
-                    isComplete = false
-                )
-            )
-        )
+    private fun createSession(key: StreamSearchRequestKey, producer: () -> Flow<NetworkResult<List<AddonStreams>>>): Session {
+        val session = Session(MutableStateFlow(Snapshot(NetworkResult.Loading, 0L, false)))
         session.job = scope.launch(start = CoroutineStart.LAZY) {
             try {
                 producer().collect { result ->
-                    if (result is NetworkResult.Success && result.data.isNotEmpty()) {
-                        session.lastSuccessfulResult = result
-                    }
-                    session.state.update { current ->
-                        Snapshot(
-                            result = result,
-                            version = current.version + 1,
-                            isComplete = false
-                        )
-                    }
+                    if (result is NetworkResult.Success && result.data.isNotEmpty()) session.lastSuccessfulResult = result
+                    session.state.update { current -> Snapshot(result, current.version + 1, false) }
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                session.state.update { current ->
-                    Snapshot(
-                        result = NetworkResult.Error(error.message ?: "Failed to fetch streams"),
-                        version = current.version + 1,
-                        isComplete = false
-                    )
-                }
+                session.state.update { current -> Snapshot(NetworkResult.Error(error.message ?: "Failed to fetch streams"), current.version + 1, false) }
             } finally {
                 completeSession(key, session)
             }
@@ -151,23 +100,12 @@ internal class StreamSearchSessionCache(
         if (session.invalidated) return
         session.state.update { current ->
             val lastSuccess = session.lastSuccessfulResult
-            if (lastSuccess != null && current.result !is NetworkResult.Success) {
-                Snapshot(
-                    result = lastSuccess,
-                    version = current.version + 1,
-                    isComplete = true
-                )
-            } else {
-                current.copy(isComplete = true)
-            }
+            if (lastSuccess != null && current.result !is NetworkResult.Success) Snapshot(lastSuccess, current.version + 1, true)
+            else current.copy(isComplete = true)
         }
         mutex.withLock {
             if (sessions[key] !== session) return@withLock
-            if (session.lastSuccessfulResult != null) {
-                session.completedAtMs = nowMs()
-            } else {
-                sessions.remove(key)
-            }
+            if (session.lastSuccessfulResult != null) session.completedAtMs = nowMs() else sessions.remove(key)
         }
     }
 
@@ -176,8 +114,7 @@ internal class StreamSearchSessionCache(
         while (iterator.hasNext()) {
             val (existingKey, session) = iterator.next()
             val belongsToAnotherProfile = existingKey.profileId != requestedKey.profileId
-            val sourceConfigurationChanged = existingKey.matchesMediaRequest(requestedKey) &&
-                existingKey.sourceConfiguration != requestedKey.sourceConfiguration
+            val sourceConfigurationChanged = existingKey.matchesMediaRequest(requestedKey) && existingKey.sourceConfiguration != requestedKey.sourceConfiguration
             if (belongsToAnotherProfile || sourceConfigurationChanged) {
                 iterator.remove()
                 session.cancelAndComplete()
@@ -215,11 +152,8 @@ internal class StreamSearchSessionCache(
     }
 
     private fun StreamSearchRequestKey.matchesMediaRequest(other: StreamSearchRequestKey): Boolean =
-        profileId == other.profileId &&
-            type == other.type &&
-            videoId == other.videoId &&
-            season == other.season &&
-            episode == other.episode
+        profileId == other.profileId && type == other.type && videoId == other.videoId &&
+            season == other.season && episode == other.episode && title == other.title && year == other.year
 
     private companion object {
         const val DEFAULT_COMPLETED_TTL_MS = 15 * 60 * 1_000L
