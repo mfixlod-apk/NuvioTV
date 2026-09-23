@@ -141,6 +141,14 @@ object TelegramClient {
         client?.send(TdApi.RequestQrCodeAuthentication(LongArray(0)), null)
     }
 
+    fun startQrLogin() {
+        if (client == null) {
+            appContext?.let { initialize(it) }
+            return
+        }
+        client?.send(TdApi.RequestQrCodeAuthentication(LongArray(0)), null)
+    }
+
     fun submitPhone(phone: String) {
         client?.send(TdApi.SetAuthenticationPhoneNumber(phone, null), null)
     }
