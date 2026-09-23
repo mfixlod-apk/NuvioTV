@@ -356,6 +356,8 @@ class StreamRepositoryImpl @Inject constructor(
 
     private fun buildSourceConfigurationKey(
         addons: List<Addon>,
+        title: String,
+        year: Int?,
         pluginsEnabled: Boolean,
         enabledScrapers: List<ScraperInfo>,
         groupPluginsByRepository: Boolean,
