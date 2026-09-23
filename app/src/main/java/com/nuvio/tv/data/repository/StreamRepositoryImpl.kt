@@ -105,8 +105,6 @@ class StreamRepositoryImpl @Inject constructor(
             year = year,
             sourceConfiguration = buildSourceConfigurationKey(
                 addons = sourceConfiguration.addons,
-                title = title,
-                year = year,
                 pluginsEnabled = sourceConfiguration.pluginsEnabled,
                 enabledScrapers = sourceConfiguration.enabledScrapers,
                 groupPluginsByRepository = sourceConfiguration.groupPluginsByRepository,
