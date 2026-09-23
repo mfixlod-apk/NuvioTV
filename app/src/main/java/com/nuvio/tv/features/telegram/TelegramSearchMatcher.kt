@@ -121,6 +121,13 @@ object TelegramSearchMatcher {
 
         val queries = mutableListOf<String>()
 
+        // Always search by title alone as a broad fallback. Telegram search is
+        // token based, so requiring SxxEyy in the Telegram query can miss files
+        // whose filename uses a different episode notation. The matcher below
+        // still enforces the requested season/episode before returning streams.
+        queries += engBase
+        if (!titlesAreSame && locBase != null) queries += locBase
+
         if (languageCode == "he") {
             val hebTitle = if (titlesAreSame) engBase else locBase ?: engBase
             queries += listOf(
