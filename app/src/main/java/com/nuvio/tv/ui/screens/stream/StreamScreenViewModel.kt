@@ -942,7 +942,8 @@ class StreamScreenViewModel @Inject constructor(
             emptyList()
         }
 
-        val orderedNames = (directDebridSourceNames + addonNames + pluginNames).distinct()
+        val telegramName = if (com.nuvio.tv.features.telegram.TelegramSourceResolver.isEnabled()) listOf("Telegram") else emptyList()
+        val orderedNames = (directDebridSourceNames + addonNames + pluginNames + telegramName).distinct()
         if (orderedNames.isEmpty()) {
             updateUiStateIfChanged { it.copy(sourceChips = emptyList()) }
             return
