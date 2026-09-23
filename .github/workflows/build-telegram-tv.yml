@@ -1,5 +1,5 @@
 name: Build Nuvio TV Telegram
-# Telegram stream integration build trigger - cache key fix
+# Telegram stream integration build trigger - force rebuild
 
 on:
   push:
@@ -54,9 +54,7 @@ jobs:
         run: |
           set -e
           APK=$(find app/build/outputs/apk -type f -name '*universal*.apk' | head -n 1)
-          if [ -z "$APK" ]; then
-            APK=$(find app/build/outputs/apk -type f -name '*.apk' | head -n 1)
-          fi
+          if [ -z "$APK" ]; then APK=$(find app/build/outputs/apk -type f -name '*.apk' | head -n 1); fi
           test -n "$APK"
           cp "$APK" Nuvio-TV-Telegram.apk
           ls -lh Nuvio-TV-Telegram.apk
@@ -70,6 +68,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "nuvio-tv-telegram-${{ github.run_number }}" Nuvio-TV-Telegram.apk \
-            --title "Nuvio TV Telegram ${{ github.run_number }}" \
-            --notes "Nuvio TV Android TV build with native Telegram integration and Nuvio account authentication."
+          gh release create "nuvio-tv-telegram-${{ github.run_number }}" Nuvio-TV-Telegram.apk --title "Nuvio TV Telegram ${{ github.run_number }}" --notes "Nuvio TV Android TV build with native Telegram integration and Nuvio account authentication."
