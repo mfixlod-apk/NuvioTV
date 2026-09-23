@@ -11,6 +11,7 @@ import com.nuvio.tv.core.plugin.PluginManager
 import com.nuvio.tv.core.plugin.resolvePluginSeasonEpisode
 import com.nuvio.tv.core.profile.ProfileManager
 import com.nuvio.tv.core.tmdb.TmdbService
+import com.nuvio.tv.features.telegram.TelegramSourceResolver
 import com.nuvio.tv.data.local.DebridSettingsDataStore
 import com.nuvio.tv.data.mapper.toDomain
 import com.nuvio.tv.data.remote.api.AddonApi
@@ -89,6 +90,8 @@ class StreamRepositoryImpl @Inject constructor(
         videoId: String,
         season: Int?,
         episode: Int?,
+        title: String,
+        year: Int?,
         forceRefresh: Boolean
     ): Flow<NetworkResult<List<AddonStreams>>> = flow {
         val sourceConfiguration = captureSourceConfiguration()
@@ -98,6 +101,8 @@ class StreamRepositoryImpl @Inject constructor(
             videoId = videoId,
             season = season,
             episode = episode,
+            title = title,
+            year = year,
             sourceConfiguration = buildSourceConfigurationKey(
                 addons = sourceConfiguration.addons,
                 pluginsEnabled = sourceConfiguration.pluginsEnabled,
@@ -120,6 +125,8 @@ class StreamRepositoryImpl @Inject constructor(
                     videoId = videoId,
                     season = season,
                     episode = episode,
+                    title = title,
+                    year = year,
                     addons = sourceConfiguration.addons,
                     debridSettings = sourceConfiguration.debridSettings,
                     hasCompatiblePlugins = sourceConfiguration.pluginsEnabled &&
@@ -159,6 +166,8 @@ class StreamRepositoryImpl @Inject constructor(
         videoId: String,
         season: Int?,
         episode: Int?,
+        title: String,
+        year: Int?,
         addons: List<Addon>,
         debridSettings: DebridSettings,
         hasCompatiblePlugins: Boolean
@@ -184,7 +193,8 @@ class StreamRepositoryImpl @Inject constructor(
                 val resultChannel = Channel<AddonStreams>(Channel.UNLIMITED)
                 
                 // Track number of pending jobs
-                val totalJobs = streamAddons.size + 1
+                val telegramEnabled = TelegramSourceResolver.isEnabled()
+                val totalJobs = streamAddons.size + 1 + if (telegramEnabled) 1 else 0
                 val completedJobs = java.util.concurrent.atomic.AtomicInteger(0)
 
                 // Launch addon jobs
@@ -283,6 +293,36 @@ class StreamRepositoryImpl @Inject constructor(
                     }
                 }
 
+                if (telegramEnabled) {
+                    launch {
+                        try {
+                            val telegramStreams = TelegramSourceResolver.resolve(
+                                title = title,
+                                year = year,
+                                season = season,
+                                episode = episode,
+                                imdbId = videoId.substringBefore(":"),
+                                isMovie = season == null && episode == null
+                            )
+                            if (telegramStreams.isNotEmpty()) {
+                                resultChannel.send(
+                                    AddonStreams(
+                                        addonName = "Telegram",
+                                        addonLogo = null,
+                                        streams = telegramStreams.map { it.copy(addonName = "Telegram", addonLogo = null) }
+                                    )
+                                )
+                            }
+                        } catch (e: Exception) {
+                            if (e is CancellationException) throw e
+                            Log.e(TAG, "Telegram search failed: " + e.message, e)
+                        } finally {
+                            if (completedJobs.incrementAndGet() >= totalJobs) {
+                                resultChannel.close()
+                            }
+                        }
+                    }
+                }
                 // Emit results as they arrive
                 for (result in resultChannel) {
                     val checkingResult = localDebridAvailabilityService.markChecking(listOf(result)).firstOrNull() ?: result
@@ -326,6 +366,9 @@ class StreamRepositoryImpl @Inject constructor(
         addons.forEach { addon ->
             append("|addon:").append(addon)
         }
+        append("title:").append(title)
+        append("|year:").append(year ?: "")
+        append("|telegram:").append(TelegramSourceResolver.isEnabled())
         append("plugins:").append(pluginsEnabled)
         append("|grouped:").append(groupPluginsByRepository)
         enabledScrapers.forEach { scraper ->
