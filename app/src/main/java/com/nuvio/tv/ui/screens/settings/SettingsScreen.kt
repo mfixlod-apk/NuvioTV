@@ -71,6 +71,7 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -1303,23 +1304,74 @@ private fun Key.isDirection(): Boolean =
 @Composable
 private fun TelegramSettingsContent(initialFocusRequester: FocusRequester) {
     val authState by TelegramRepository.authState.collectAsStateWithLifecycle()
-    var input by rememberSaveable { mutableStateOf("") }
+    var phone by rememberSaveable { mutableStateOf("") }
+    var code by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
+
     LaunchedEffect(Unit) { TelegramRepository.startAuth() }
-    Column(modifier = Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        SettingsDetailHeader(title = "Telegram", subtitle = "Connect Telegram to search and stream your video sources.")
+
+    fun qrBitmap(data: String): androidx.compose.ui.graphics.ImageBitmap? = runCatching {
+        val matrix = com.google.zxing.qrcode.QRCodeWriter().encode(
+            data,
+            com.google.zxing.BarcodeFormat.QR_CODE,
+            520,
+            520
+        )
+        val bitmap = android.graphics.Bitmap.createBitmap(
+            520,
+            520,
+            android.graphics.Bitmap.Config.ARGB_8888
+        )
+        for (y in 0 until 520) {
+            for (x in 0 until 520) {
+                bitmap.setPixel(
+                    x,
+                    y,
+                    if (matrix.get(x, y)) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+                )
+            }
+        }
+        bitmap.asImageBitmap()
+    }.getOrNull()
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        SettingsDetailHeader(
+            title = "Telegram",
+            subtitle = "Connect Telegram to search and stream your video sources."
+        )
+
         when (val state = authState) {
             TelegramAuthState.Idle, TelegramAuthState.Initializing -> {
                 Text("Telegram is not connected.")
-                androidx.tv.material3.Button(onClick = { TelegramRepository.startAuth() }, modifier = Modifier.focusRequester(initialFocusRequester)) { Text("Connect Telegram") }
+                androidx.tv.material3.Button(
+                    onClick = { TelegramRepository.startAuth() },
+                    modifier = Modifier.focusRequester(initialFocusRequester)
+                ) { Text("Connect Telegram") }
             }
+
             TelegramAuthState.WaitPhone -> {
                 val continueFocusRequester = remember { FocusRequester() }
+                val qrFocusRequester = remember { FocusRequester() }
+
                 Text("Enter your Telegram phone number, including country code.")
+
                 androidx.compose.material3.OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it },
+                    value = phone,
+                    onValueChange = { phone = it },
                     label = { Text("Phone number") },
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        color = androidx.compose.ui.graphics.Color.White
+                    ),
+                    colors = androidx.compose.material3.TextFieldDefaults.colors(
+                        focusedTextColor = androidx.compose.ui.graphics.Color.White,
+                        unfocusedTextColor = androidx.compose.ui.graphics.Color.White,
+                        focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                        unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent
+                    ),
                     modifier = Modifier
                         .focusRequester(initialFocusRequester)
                         .onPreviewKeyEvent { event ->
@@ -1331,18 +1383,43 @@ private fun TelegramSettingsContent(initialFocusRequester: FocusRequester) {
                             }
                         }
                 )
-                androidx.tv.material3.Button(
-                    onClick = { TelegramRepository.submitPhone(input.trim()) },
-                    modifier = Modifier.focusRequester(continueFocusRequester)
-                ) { Text("Continue") }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    androidx.tv.material3.Button(
+                        onClick = {
+                            val value = phone.trim()
+                            if (value.isNotEmpty()) TelegramRepository.submitPhone(value)
+                        },
+                        modifier = Modifier.focusRequester(continueFocusRequester)
+                    ) { Text("Continue with phone") }
+
+                    androidx.tv.material3.Button(
+                        onClick = { TelegramRepository.requestQrCode() },
+                        modifier = Modifier.focusRequester(qrFocusRequester)
+                    ) { Text("Connect with QR") }
+                }
             }
+
             is TelegramAuthState.WaitCode -> {
                 val verifyFocusRequester = remember { FocusRequester() }
+
                 Text("Enter the Telegram login code.")
+                Text("The code will be sent by Telegram to your Telegram app or by SMS, depending on your account.")
+
                 androidx.compose.material3.OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it },
+                    value = code,
+                    onValueChange = { code = it },
                     label = { Text("Code") },
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        color = androidx.compose.ui.graphics.Color.White
+                    ),
+                    colors = androidx.compose.material3.TextFieldDefaults.colors(
+                        focusedTextColor = androidx.compose.ui.graphics.Color.White,
+                        unfocusedTextColor = androidx.compose.ui.graphics.Color.White,
+                        focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                        unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent
+                    ),
                     modifier = Modifier
                         .focusRequester(initialFocusRequester)
                         .onPreviewKeyEvent { event ->
@@ -1354,18 +1431,35 @@ private fun TelegramSettingsContent(initialFocusRequester: FocusRequester) {
                             }
                         }
                 )
+
                 androidx.tv.material3.Button(
-                    onClick = { TelegramRepository.submitCode(input.trim()) },
+                    onClick = {
+                        val value = code.trim()
+                        if (value.isNotEmpty()) TelegramRepository.submitCode(value)
+                    },
                     modifier = Modifier.focusRequester(verifyFocusRequester)
                 ) { Text("Verify") }
             }
+
             TelegramAuthState.WaitPassword -> {
                 val verifyFocusRequester = remember { FocusRequester() }
+
                 Text("Enter your Telegram 2-step verification password.")
+
                 androidx.compose.material3.OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
                     label = { Text("Password") },
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        color = androidx.compose.ui.graphics.Color.White
+                    ),
+                    colors = androidx.compose.material3.TextFieldDefaults.colors(
+                        focusedTextColor = androidx.compose.ui.graphics.Color.White,
+                        unfocusedTextColor = androidx.compose.ui.graphics.Color.White,
+                        focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                        unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent
+                    ),
                     modifier = Modifier
                         .focusRequester(initialFocusRequester)
                         .onPreviewKeyEvent { event ->
@@ -1377,22 +1471,50 @@ private fun TelegramSettingsContent(initialFocusRequester: FocusRequester) {
                             }
                         }
                 )
+
                 androidx.tv.material3.Button(
-                    onClick = { TelegramRepository.submitPassword(password) },
+                    onClick = {
+                        val value = password
+                        if (value.isNotEmpty()) TelegramRepository.submitPassword(value)
+                    },
                     modifier = Modifier.focusRequester(verifyFocusRequester)
                 ) { Text("Verify") }
             }
+
             is TelegramAuthState.WaitQr -> {
-                Text("Telegram is waiting for confirmation on another device.")
-                Text(state.link)
+                val qr = qrBitmap(state.link)
+
+                Text("Scan this QR code with Telegram on your phone.")
+                if (qr != null) {
+                    androidx.compose.foundation.Image(
+                        bitmap = qr,
+                        contentDescription = "Telegram QR login",
+                        modifier = Modifier.size(360.dp)
+                    )
+                } else {
+                    Text("Unable to generate the QR code.")
+                }
+
+                androidx.tv.material3.Button(
+                    onClick = { TelegramRepository.requestQrCode() },
+                    modifier = Modifier.focusRequester(initialFocusRequester)
+                ) { Text("Generate new QR code") }
             }
+
             is TelegramAuthState.Ready -> {
                 Text("Connected as " + state.firstName)
-                androidx.tv.material3.Button(onClick = { TelegramRepository.disconnect() }, modifier = Modifier.focusRequester(initialFocusRequester)) { Text("Disconnect Telegram") }
+                androidx.tv.material3.Button(
+                    onClick = { TelegramRepository.disconnect() },
+                    modifier = Modifier.focusRequester(initialFocusRequester)
+                ) { Text("Disconnect Telegram") }
             }
+
             is TelegramAuthState.Error -> {
                 Text("Telegram error: " + state.message)
-                androidx.tv.material3.Button(onClick = { TelegramRepository.startAuth() }, modifier = Modifier.focusRequester(initialFocusRequester)) { Text("Try again") }
+                androidx.tv.material3.Button(
+                    onClick = { TelegramRepository.startAuth() },
+                    modifier = Modifier.focusRequester(initialFocusRequester)
+                ) { Text("Try again") }
             }
         }
     }
