@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -65,3 +65,10 @@ jobs:
           name: Nuvio-TV-Telegram-APK
           path: Nuvio-TV-Telegram.apk
           if-no-files-found: error
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "nuvio-tv-telegram-${{ github.run_number }}" Nuvio-TV-Telegram.apk \
+            --title "Nuvio TV Telegram ${{ github.run_number }}" \
+            --notes "Nuvio TV Android TV build with native Telegram integration and Nuvio account authentication."
