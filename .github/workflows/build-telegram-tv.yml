@@ -1,5 +1,5 @@
 name: Build Nuvio TV Telegram
-# Telegram stream integration build trigger - force rebuild
+# Build Telegram TV APK after cache key fix - force rebuild
 
 on:
   push:
@@ -48,7 +48,7 @@ jobs:
           cache: gradle
       - uses: gradle/actions/setup-gradle@v4
       - name: Build TV APK
-        run: ./gradlew :app:assembleFullDebug --stacktrace
+        run: ./gradlew :app:assembleFullDebug --no-daemon --stacktrace
       - name: Select universal APK
         shell: bash
         run: |
