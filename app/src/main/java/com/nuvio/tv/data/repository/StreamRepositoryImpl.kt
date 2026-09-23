@@ -101,8 +101,6 @@ class StreamRepositoryImpl @Inject constructor(
             videoId = videoId,
             season = season,
             episode = episode,
-            title = title,
-            year = year,
             sourceConfiguration = buildSourceConfigurationKey(
                 addons = sourceConfiguration.addons,
                 pluginsEnabled = sourceConfiguration.pluginsEnabled,
